@@ -26,7 +26,6 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Text;
 
 namespace SQLite
 {
@@ -600,7 +599,7 @@ namespace SQLite
 		public void SetAutoIncPK (object obj, long id)
 		{
 			if (_autoPk != null) {
-				_autoPk.SetValue (obj, Convert.ChangeType (id, _autoPk.ColumnType,null));
+				_autoPk.SetValue (obj, Convert.ChangeType (id, _autoPk.ColumnType));
 			}
 		}
 
@@ -1134,7 +1133,7 @@ namespace SQLite
 				var valr = CompileExpr (u.Operand, queryArgs);
 				return new CompileResult {
 					CommandText = valr.CommandText,
-					Value = valr.Value != null ? Convert.ChangeType (valr.Value, ty,null) : null
+					Value = valr.Value != null ? Convert.ChangeType (valr.Value, ty) : null
 				};
 			} else if (expr.NodeType == ExpressionType.MemberAccess) {
 				var mem = (MemberExpression)expr;
@@ -1225,19 +1224,19 @@ namespace SQLite
 		{
 			OK = 0,
 			Error = 1,
-            Internal = 2,
-            Perm = 3,
-            Abort = 4,
-            Busy = 5,
-            Locked = 6,
-            NoMem = 7,
-            ReadOnly = 8,
-            Interrupt = 9,
-            IOError = 10,
-            Corrupt = 11,
-            NotFound = 12,
-            TooBig = 18,
-            Constraint = 19,
+			Internal = 2,
+			Perm = 3,
+			Abort = 4,
+			Busy = 5,
+			Locked = 6,
+			NoMem = 7,
+			ReadOnly = 8,
+			Interrupt = 9,
+			IOError = 10,
+			Corrupt = 11,
+			NotFound = 12,
+			TooBig = 18,
+			Constraint = 19,
 			Row = 100,
 			Done = 101
 		}
@@ -1250,192 +1249,84 @@ namespace SQLite
 		}
 
 		[DllImport("sqlite3", EntryPoint = "sqlite3_open")]
-		private static extern Result OpenCore (IntPtr filename, out IntPtr db);
-        
-        public static Result Open(string filename, out IntPtr db)
-        {
-            var bytes = ToUtf8(filename);
-            GCHandle handle = GCHandle.Alloc(bytes, GCHandleType.Pinned);
-            try
-            {
-                return OpenCore(handle.AddrOfPinnedObject(), out db);
-            }
-            finally
-            {
-                handle.Free();
-            }
-        }
-
+		public static extern Result Open (string filename, out IntPtr db);
 		[DllImport("sqlite3", EntryPoint = "sqlite3_close")]
 		public static extern Result Close (IntPtr db);
 		[DllImport("sqlite3", EntryPoint = "sqlite3_config")]
 		public static extern Result Config (ConfigOption option);
-        [DllImport("sqlite3", EntryPoint = "sqlite3_busy_timeout")]
-        public static extern Result BusyTimeout(IntPtr db, int milliseconds);
+		[DllImport("sqlite3", EntryPoint = "sqlite3_busy_timeout")]
+		public static extern Result BusyTimeout (IntPtr db, int milliseconds);
 
 		[DllImport("sqlite3", EntryPoint = "sqlite3_changes")]
 		public static extern int Changes (IntPtr db);
 
-        [DllImport("sqlite3", EntryPoint = "sqlite3_prepare_v2")]
-        public static extern Result Prepare2(IntPtr db, IntPtr sql, int numBytes, out IntPtr stmt, IntPtr pzTail);
-        public static IntPtr Prepare2(IntPtr db, string query)
-        {
-            var queryBytes = ToUtf8(query);
-            GCHandle handle = GCHandle.Alloc(queryBytes, GCHandleType.Pinned);
-            try
-            {
-                IntPtr stmt;
-                var r = Prepare2(db, handle.AddrOfPinnedObject(), queryBytes.Length, out stmt, IntPtr.Zero);
-                if(r != Result.OK)
-                {
-                    throw SQLiteException.New(r, GetErrmsg(db));
-                }
-                return stmt;
-            }
-            finally
-            {
-                handle.Free();
-            }
-        }
-
-
 		[DllImport("sqlite3", EntryPoint = "sqlite3_prepare_v2")]
-		private static extern Result Prepare (IntPtr db, IntPtr sql, int numBytes, out IntPtr stmt, IntPtr pzTail);		
-        public static IntPtr Prepare (IntPtr db, string query)
+		public static extern Result Prepare2 (IntPtr db, string sql, int numBytes, out IntPtr stmt, IntPtr pzTail);
+		public static IntPtr Prepare2 (IntPtr db, string query)
 		{
-            var queryBytes = ToUtf8(query);
-            GCHandle handle = GCHandle.Alloc(queryBytes, GCHandleType.Pinned);
-            try
-            {
-                IntPtr stmt;
-                var r = Prepare(db, handle.AddrOfPinnedObject(), queryBytes.Length, out stmt, IntPtr.Zero);
-                if(r != Result.OK)
-                {
-                    throw SQLiteException.New(r, GetErrmsg(db));
-                }
-                return stmt;
-            }
-            finally
-            {
-                handle.Free();   
-            }
+			IntPtr stmt;
+			var r = Prepare2 (db, query, query.Length, out stmt, IntPtr.Zero);
+			if (r != Result.OK) {
+				throw SQLiteException.New (r, GetErrmsg (db));
+			}
+			return stmt;
 		}
 
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_step")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_step")]
 		public static extern Result Step (IntPtr stmt);
 
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_finalize")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_finalize")]
 		public static extern Result Finalize (IntPtr stmt);
 
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_last_insert_rowid_interop")]
-		private static extern void LastInsertRowid (IntPtr db,out long id);
+		[DllImport("sqlite3", EntryPoint = "sqlite3_last_insert_rowid")]
+		public static extern long LastInsertRowid (IntPtr db);
 
-	    public static long LastInsertRowid(IntPtr db)
-        {
-            long id;
-            LastInsertRowid(db, out id);
-            return id;
-        }
+		[DllImport("sqlite3", EntryPoint = "sqlite3_errmsg16")]
+		public static extern IntPtr Errmsg (IntPtr db);
+		public static string GetErrmsg (IntPtr db)
+		{
+			return Marshal.PtrToStringUni (Errmsg (db));
+		}
 
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_errmsg_interop")]
-		private static extern IntPtr Errmsg (IntPtr db, out int len);
+		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_parameter_index")]
+		public static extern int BindParameterIndex (IntPtr stmt, string name);
 
-        public static string GetErrmsg(IntPtr db)
-        {
-            int len;
-            return Utf8ToString(Errmsg(db, out len),len);
-        }
-
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_bind_parameter_index")]
-		private static extern int BindParameterIndex (IntPtr stmt, IntPtr name);
-
-	    public static int BindParameterIndex(IntPtr stmt, string name)
-        {
-            var bytes = ToUtf8(name);
-            GCHandle handle = GCHandle.Alloc(bytes, GCHandleType.Pinned);
-            try
-            {
-                IntPtr pointer = handle.AddrOfPinnedObject();
-                return BindParameterIndex(stmt, pointer);
-            }
-            finally
-            {
-                handle.Free();
-            }
-        }
-
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_bind_null")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_null")]
 		public static extern int BindNull (IntPtr stmt, int index);
-
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_bind_int")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_int")]
 		public static extern int BindInt (IntPtr stmt, int index, int val);
-
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_bind_int64")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_int64")]
 		public static extern int BindInt64 (IntPtr stmt, int index, long val);
-
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_bind_double")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_double")]
 		public static extern int BindDouble (IntPtr stmt, int index, double val);
+		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_text")]
+		public static extern int BindText (IntPtr stmt, int index, string val, int n, IntPtr free);
 
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_bind_text")]
-		private static extern int BindText (IntPtr stmt, int index, IntPtr val, int n, IntPtr free);
-
-	    public static int BindText(IntPtr stmt, int index, string val, int n, IntPtr free)
-        {
-            var bytes = ToUtf8(val);
-            GCHandle handle = GCHandle.Alloc(bytes, GCHandleType.Pinned);
-            try
-            {
-                IntPtr pointer = handle.AddrOfPinnedObject();
-                return BindText(stmt, index, pointer, bytes.Length - 1, free);
-            }
-            finally
-            {
-                handle.Free();
-            }
-        }
-
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_column_count")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_count")]
 		public static extern int ColumnCount (IntPtr stmt);
-
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_column_name")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_name")]
 		public static extern IntPtr ColumnName (IntPtr stmt, int index);
-
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_column_name16")]
-        public static extern IntPtr ColumnName16(IntPtr stmt, int index);
-
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_column_type")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_name16")]
+		public static extern IntPtr ColumnName16 (IntPtr stmt, int index);
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_type")]
 		public static extern ColType ColumnType (IntPtr stmt, int index);
-
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_column_int")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_int")]
 		public static extern int ColumnInt (IntPtr stmt, int index);
-
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_column_int64_interop")]
-		private static extern void ColumnInt64 (IntPtr stmt, int index, out long value);
-
-	    public static long ColumnInt64(IntPtr stmt, int index)
-        {
-            long value;
-            ColumnInt64(stmt,index,out value);
-            return value;
-        }
-
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_column_double_interop")]
-		private static extern double ColumnDouble (IntPtr stmt, int index, out double value);
-
-	    public static double ColumnDouble(IntPtr stmt, int index)
-        {
-            double value;
-            ColumnDouble(stmt, index, out value);
-            return value;
-        }
-
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_column_text")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_int64")]
+		public static extern long ColumnInt64 (IntPtr stmt, int index);
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_double")]
+		public static extern double ColumnDouble (IntPtr stmt, int index);
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_text")]
 		public static extern IntPtr ColumnText (IntPtr stmt, int index);
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_text16")]
+		public static extern IntPtr ColumnText16 (IntPtr stmt, int index);
 
-	    [DllImport("sqlite3", EntryPoint = "sqlite3_column_text16")]
-        public static extern IntPtr ColumnText16(IntPtr stmt, int index);
+		public static string ColumnString (IntPtr stmt, int index)
+		{
+			return Marshal.PtrToStringUni (SQLite3.ColumnText16 (stmt, index));
+		}
 
-	    public enum ColType : int
+		public enum ColType : int
 		{
 			Integer = 1,
 			Float = 2,
@@ -1443,42 +1334,6 @@ namespace SQLite
 			Blob = 4,
 			Null = 5
 		}
-
-        public static string ColumnString(IntPtr stmt, int index)
-        {
-            return Marshal.PtrToStringUni(SQLite3.ColumnText16(stmt, index));
-        }
-
-	    private static byte[] ToUtf8(string sourceText)
-	    {
-	        Byte[] byteArray;
-	        int nlen = Encoding.UTF8.GetByteCount(sourceText) + 1;
-
-	        byteArray = new byte[nlen];
-	        nlen = Encoding.UTF8.GetBytes(sourceText, 0, sourceText.Length, byteArray, 0);
-	        byteArray[nlen] = 0;
-
-	        return byteArray;
-	    }
-
-	    private static string Utf8ToString(IntPtr nativestring, int nativestringlen)
-	    {
-	        if(nativestringlen == 0 || nativestring == IntPtr.Zero)
-	            return "";
-	        if(nativestringlen == -1)
-	        {
-	            do
-	            {
-	                nativestringlen++;
-	            } while(Marshal.ReadByte(nativestring, nativestringlen) != 0);
-	        }
-
-	        byte[] byteArray = new byte[nativestringlen];
-
-	        Marshal.Copy(nativestring, byteArray, 0, nativestringlen);
-
-	        return Encoding.UTF8.GetString(byteArray, 0, nativestringlen);
-	    }
 	}
 	
 }
