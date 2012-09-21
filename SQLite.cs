@@ -1420,7 +1420,7 @@ namespace SQLite
         }
 
 	    [DllImport("sqlite3", EntryPoint = "sqlite3_column_double_interop")]
-		private static extern double ColumnDouble (IntPtr stmt, int index, out double value);
+		private static extern void ColumnDouble (IntPtr stmt, int index, out double value);
 
 	    public static double ColumnDouble(IntPtr stmt, int index)
         {
