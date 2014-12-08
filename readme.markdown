@@ -1,3 +1,5 @@
+> ***I havent any plan to update that code to a nerwer version, since I have no compact device anymore and in my spare free time there are enought other projects. So feel free to send a pullrequest if you want a newer version.***
+
 sqlite-net .Net Compact Framework Port 
 ==============
 This is a port of sqlite-net http://code.google.com/p/sqlite-net to Microsoft .Net Compact Framework.
